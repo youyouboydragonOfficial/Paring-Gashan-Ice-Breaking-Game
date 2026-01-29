@@ -1,11 +1,9 @@
-最新1
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ice Breaker パリン、ガシャーン 氷ブロック崩し</title>
+    <title>Ice Breaker パリン、ガシャーン氷ブロック崩しゲーム</title>
     <style>
         body {
             margin: 0;
@@ -18,7 +16,6 @@
         }
         canvas { display: block; }
         
-        /* UIレイヤー */
         #ui-layer {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -39,7 +36,6 @@
         }
         #lives-canvas { display: block; }
         
-        /* 共通オーバーレイ設定 */
         .overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -385,6 +381,8 @@ window.addEventListener('keydown', e => { if(e.code === 'Space') handleAction();
 
 UI.btn.addEventListener('click', () => {
     AudioSys.init();
+    if (gameState === STATE.LEVEL_CLEAR) return;
+
     if (gameState === STATE.GAME_OVER) {
         lives = INITIAL_LIVES;
         startLevel(currentLevel);
@@ -579,6 +577,7 @@ class Ball {
             this.y = paddle.y - this.radius - 2;
             return;
         }
+        
         const currentSpeed = Math.hypot(this.dx, this.dy);
         const minSpeed = 2.5;
         if (currentSpeed < minSpeed && currentSpeed > 0.1) {
@@ -589,6 +588,7 @@ class Ball {
         if (Math.abs(this.dy) < 0.5) {
             this.dy += (this.dy >= 0 ? 0.5 : -0.5);
         }
+
         const steps = 4;
         const stepDx = this.dx / steps;
         const stepDy = this.dy / steps;
@@ -600,20 +600,27 @@ class Ball {
             if (this.y < this.radius) { this.y = this.radius; this.dy = Math.abs(this.dy); collided = true; }
             if (collided) AudioSys.playHitSoft();
 
-            if (this.dy > 0 && this.y + this.radius >= paddle.y && this.y - this.radius <= paddle.y + paddle.height &&
+            if (this.dy > 0 && 
+                this.y + this.radius >= paddle.y && 
+                this.y - this.radius <= paddle.y + paddle.height &&
                 this.x >= paddle.x && this.x <= paddle.x + paddle.width) {
-                this.dy = -Math.abs(this.dy); this.y = paddle.y - this.radius - 1;
+                
+                this.dy = -Math.abs(this.dy);
+                this.y = paddle.y - this.radius - 1;
                 let hitPos = (this.x - (paddle.x + paddle.width/2)) / (paddle.width/2);
                 this.dx = hitPos * (this.speed * 1.5); 
+                
                 let s = Math.hypot(this.dx, this.dy);
                 if (s > this.maxSpeed) {
                     let scale = this.maxSpeed / s;
-                    this.dx *= scale; this.dy *= scale;
+                    this.dx *= scale;
+                    this.dy *= scale;
                 }
                 AudioSys.playHitSoft();
                 createParticles(this.x, this.y, '#ffffff', 5);
                 break;
             }
+
             for (let obs of obstacles) {
                 const dist = Math.hypot(this.x - obs.x, this.y - obs.y);
                 if (dist < this.radius + obs.radius) {
@@ -632,6 +639,7 @@ class Ball {
                 }
             }
             if (collided) break;
+
             let hitBlock = false;
             for (let b of bricks) {
                 if (!b.active) continue;
@@ -676,10 +684,7 @@ class Ball {
 class Brick {
     constructor(x, y, w, h, type, level) {
         this.x = x; this.y = y; this.w = w; this.h = h;
-        this.type = type; // 0:Crystal, 1:Hard, 2:TNT
-        this.active = true;
-        if (type === 1) { this.maxHp = 2 + Math.floor(level / 2.5); this.hp = this.maxHp; } 
-        else { this.maxHp = 1; this.hp = 1; }
+        this.setType(type, level);
         this.cracks = [];
         for(let i=0; i<3; i++) {
             const cx = 0.3 + Math.random() * 0.4; const cy = 0.3 + Math.random() * 0.4;
@@ -692,6 +697,17 @@ class Brick {
             this.cracks.push(points);
         }
         this.hue = 190 + Math.random() * 30;
+    }
+    setType(type, level) {
+        this.type = type;
+        this.active = true;
+        if (type === 1) { // Hard
+            this.maxHp = 2 + Math.floor(level / 2.5);
+            this.hp = this.maxHp;
+        } else {
+            this.maxHp = 1;
+            this.hp = 1;
+        }
     }
     draw() {
         if (!this.active) return;
@@ -775,7 +791,7 @@ class PowerUp {
                 let newBalls = [];
                 const spawnX = paddle.x + paddle.width / 2; const spawnY = paddle.y - 15;
                 for (let i = 0; i < addCount; i++) {
-                    const speed = 2.8; const angle = -Math.PI / 2 + (Math.random() * 0.5 - 0.25); 
+                    const speed = 2.8; const angle = -Math.PI / 2 + (Math.random() * 1.0 - 0.5); 
                     const newDx = Math.cos(angle) * speed; const newDy = Math.sin(angle) * speed;
                     newBalls.push(new Ball(spawnX, spawnY, newDx, newDy, false));
                 }
@@ -868,7 +884,7 @@ function triggerExplosion(x, y, withDamage = false) {
         bricks.forEach(b => {
             if (b.active) {
                 const dist = Math.hypot((b.x+b.w/2)-x, (b.y+b.h/2)-y);
-                if (dist < 70) b.hit(10);
+                if (dist < 70) b.hit(10, true);
             }
         });
     }
@@ -893,6 +909,9 @@ function startLevel(lvl) {
     UI.menuOverlay.classList.remove('visible');
     UI.rescueOverlay.classList.remove('visible');
     UI.missileOverlay.classList.remove('visible');
+    UI.btn.classList.remove('hidden');
+    UI.btn.style.display = ''; 
+
     isRescueCounting = false;
     
     paddle = new Paddle();
@@ -941,9 +960,9 @@ function generateLevel(lvl) {
     const cw = CANVAS.width;
     const pattern = Math.floor(Math.random() * 10); 
     
-    // パドル位置から100px上を配置限界とする
+    const startY = 120;
+    // ブロック描画の限界Y座標 (パドル位置から100px上)
     const limitY = paddle.y - 100;
-    const startY = 80; // 開始位置を少し上げる
     const marginX = 40;
     const safeWidth = cw - marginX * 2;
 
@@ -1034,7 +1053,6 @@ function generateLevel(lvl) {
                 while (radius < maxRadius) {
                     const bx = cx + Math.cos(angle) * radius - 20;
                     const by = cy + Math.sin(angle) * radius * 0.6 - 10;
-                    // Check limitY
                     if (by + 20 > limitY) {
                         angle += 0.4; radius += 1.2; continue;
                     }
@@ -1064,7 +1082,7 @@ function generateLevel(lvl) {
                 const rows = 14; const cols = 13; const w = safeWidth / cols; const h = 20;
                 for (let r = 0; r < rows; r++) {
                     const by = startY + r * (h+2);
-                    if (by + h > limitY) break; // Check added
+                    if (by + h > limitY) break; 
                     for (let c = 0; c < cols; c++) {
                         if ((r + c) % 2 === 0 || r % 3 === 0) addBrick(marginX + c * w, by, w-2, h, lvl);
                     }
@@ -1085,27 +1103,71 @@ function generateLevel(lvl) {
             }
             break;
     }
+    
+    // 全ブロック配置後にタイプを割り当て（TNT最低保証）
+    assignBrickTypes(lvl);
 }
 
 function addBrick(x, y, w, h, lvl) {
-    let type = 0;
-    const hardRate = 0.1 + lvl * 0.05; const tntRate = 0.03 + lvl * 0.01;
-    if(Math.random() < tntRate) type = 2; else if(Math.random() < hardRate) type = 1;
-    bricks.push(new Brick(x, y, w, h, type, lvl));
+    // 仮タイプ0で作成
+    bricks.push(new Brick(x, y, w, h, 0, lvl));
+}
+
+function assignBrickTypes(lvl) {
+    if (bricks.length === 0) return;
+
+    let indices = Array.from({length: bricks.length}, (_, i) => i);
+    // Shuffle
+    for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    // TNT数決定: 最低1個。基本5% + レベル補正
+    const tntRate = 0.05 + (lvl * 0.005); 
+    let tntCount = Math.max(1, Math.floor(bricks.length * tntRate));
+    
+    // Hard数決定
+    const hardRate = 0.1 + (lvl * 0.05);
+    let hardCount = Math.floor(bricks.length * hardRate);
+
+    let currentIndex = 0;
+    
+    // TNT割り当て
+    for (let i = 0; i < tntCount && currentIndex < indices.length; i++) {
+        bricks[indices[currentIndex]].setType(2, lvl);
+        currentIndex++;
+    }
+
+    // Hard割り当て
+    for (let i = 0; i < hardCount && currentIndex < indices.length; i++) {
+        bricks[indices[currentIndex]].setType(1, lvl);
+        currentIndex++;
+    }
 }
 
 function checkClear() {
     if(bricks.filter(b => b.active).length === 0) {
         if(currentLevel >= MAX_LEVELS) {
             gameState = STATE.VICTORY;
-            UI.title.innerText = "CONGRATULATIONS!"; UI.sub.innerText = "All Stages Cleared!"; UI.btn.innerText = "RESTART GAME";
+            UI.title.innerText = "CONGRATULATIONS!";
+            UI.sub.innerText = "All Stages Cleared!";
+            UI.btn.innerText = "RESTART GAME";
+            UI.btn.classList.remove('hidden');
+            UI.btn.style.display = 'block'; 
         } else {
             gameState = STATE.LEVEL_CLEAR;
-            UI.title.innerText = "STAGE CLEAR!"; UI.sub.innerText = "Next Stage..."; UI.btn.classList.add('hidden');
-            setTimeout(() => startLevel(currentLevel + 1), 2000);
+            UI.title.innerText = "STAGE CLEAR!";
+            UI.sub.innerText = "Next Stage...";
+            UI.btn.classList.add('hidden');
+            UI.btn.style.display = 'none'; 
+            
+            setTimeout(() => {
+                 UI.btn.style.display = ''; 
+                 startLevel(currentLevel + 1);
+            }, 2000);
         }
         UI.menuOverlay.classList.add('visible');
-        if(gameState === STATE.VICTORY) UI.btn.classList.remove('hidden');
     }
 }
 
@@ -1113,8 +1175,12 @@ function loseLife() {
     lives--; drawLives(); AudioSys.playDamage();
     if (lives < 0) {
         gameState = STATE.GAME_OVER;
-        UI.title.innerText = "GAME OVER"; UI.sub.innerText = `Score: ${score} - Stage ${currentLevel}`;
-        UI.btn.innerText = "CONTINUE (Try Again)"; UI.menuOverlay.classList.add('visible');
+        UI.title.innerText = "GAME OVER";
+        UI.sub.innerText = `Score: ${score} - Stage ${currentLevel}`;
+        UI.btn.innerText = "CONTINUE (Try Again)";
+        UI.menuOverlay.classList.add('visible');
+        UI.btn.classList.remove('hidden'); 
+        UI.btn.style.display = ''; 
     } else {
         balls = [new Ball(0, 0, 0, 0, true)]; paddle.laserActive = false; tntActive = false;
         lastBrickHitTime = Date.now(); 
