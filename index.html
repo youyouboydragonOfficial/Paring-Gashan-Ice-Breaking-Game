@@ -34,8 +34,46 @@
             justify-content: space-between;
             align-items: flex-start;
             width: 100%;
+            gap: 20px;
         }
         #lives-canvas { display: block; }
+
+        .hud-block {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .meter {
+            width: 180px;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(120, 180, 255, 0.3);
+            overflow: hidden;
+        }
+
+        .meter-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, rgba(0,200,255,0.9), rgba(0,255,170,0.9));
+            box-shadow: 0 0 8px rgba(0, 220, 255, 0.7);
+            transition: width 0.15s ease;
+        }
+
+        #combo-display {
+            font-size: 14px;
+            color: #9fe8ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #surge-display {
+            font-size: 12px;
+            color: #ffd37a;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
         
         .overlay {
             position: absolute;
@@ -166,6 +204,105 @@
             border: 1px solid rgba(100,200,255,0.2);
         }
         .legend-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #ddeeff; }
+
+        #game-select-overlay {
+            background: radial-gradient(circle at top, rgba(20, 30, 60, 0.98), rgba(3, 6, 15, 0.98));
+            overflow: hidden;
+        }
+
+        .select-panel {
+            width: min(1200px, 92vw);
+            max-height: 82vh;
+            padding: 24px;
+            background: rgba(8, 15, 35, 0.9);
+            border-radius: 18px;
+            border: 1px solid rgba(120, 180, 255, 0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .select-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .select-title {
+            font-size: 30px;
+            font-weight: 800;
+            color: #e5f1ff;
+            text-shadow: 0 0 15px rgba(0,150,255,0.5);
+            margin: 0;
+        }
+
+        .select-subtitle {
+            font-size: 14px;
+            color: #aaccff;
+            margin: 4px 0 0;
+        }
+
+        .select-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 12px;
+            overflow: auto;
+            padding-right: 6px;
+        }
+
+        .game-card {
+            background: linear-gradient(135deg, rgba(20, 40, 70, 0.9), rgba(5, 10, 20, 0.9));
+            border: 1px solid rgba(120, 180, 255, 0.2);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border 0.15s ease;
+        }
+
+        .game-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: rgba(160, 220, 255, 0.6);
+            box-shadow: 0 10px 30px rgba(0, 120, 255, 0.2);
+        }
+
+        .game-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #e9f5ff;
+        }
+
+        .game-meta {
+            font-size: 12px;
+            color: #9bb6e2;
+            line-height: 1.4;
+        }
+
+        .game-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag {
+            font-size: 10px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(0, 120, 255, 0.2);
+            border: 1px solid rgba(80, 160, 255, 0.4);
+            color: #cfe6ff;
+        }
+
+        .selected-game {
+            font-size: 13px;
+            color: #a7ccff;
+            margin-top: 6px;
+        }
     </style>
 </head>
 <body>
@@ -174,9 +311,14 @@
 
 <div id="ui-layer">
     <div class="hud">
-        <div>
+        <div class="hud-block">
             <div id="score-display">SCORE: 0</div>
             <div id="level-display" style="font-size: 16px; color: #88aaff;">STAGE: 1</div>
+            <div id="combo-display">COMBO x1</div>
+            <div id="surge-display">CRYSTAL SURGE READY</div>
+            <div class="meter">
+                <div id="energy-fill" class="meter-fill"></div>
+            </div>
         </div>
         <canvas id="lives-canvas" width="200" height="30"></canvas>
     </div>
@@ -196,9 +338,10 @@
     </div>
 </div>
 
-<div id="menu-overlay" class="overlay visible">
+<div id="menu-overlay" class="overlay">
     <h1 id="title-text">CRYSTAL BREAKER</h1>
     <p id="sub-text">Tap Start to Play</p>
+    <p id="selected-game" class="selected-game"></p>
     
     <div class="legend">
         <div class="legend-item"><span style="color:#0ff">●●●</span> Multi Ball (Max 6)</div>
@@ -208,6 +351,18 @@
     </div>
 
     <button id="start-btn" class="btn">GAME START</button>
+</div>
+
+<div id="game-select-overlay" class="overlay visible">
+    <div class="select-panel">
+        <div class="select-header">
+            <div>
+                <h2 class="select-title">リアル大型ゲームセレクター</h2>
+                <p class="select-subtitle">同じ雰囲気の大型ゲームを100本用意しました。選択してからスタートできます。</p>
+            </div>
+        </div>
+        <div id="game-select-grid" class="select-grid"></div>
+    </div>
 </div>
 
 <script>
@@ -289,6 +444,11 @@ const AudioSys = {
         setTimeout(() => this.playTone(800, 'sine', 0.3, 0.1), 150);
         setTimeout(() => this.playTone(1000, 'sine', 0.5, 0.2), 300);
     },
+    playSurge: function() {
+        this.playTone(500, 'triangle', 0.15, 0.15);
+        setTimeout(() => this.playTone(1200, 'sine', 0.2, 0.15), 120);
+        setTimeout(() => this.playTone(1800, 'sine', 0.25, 0.12), 240);
+    },
     playMissileImpact: function() {
         if(!this.ctx) return;
         this.playNoise(0.8, 0.8, 100);
@@ -312,13 +472,19 @@ const LIVES_CTX = LIVES_CANVAS.getContext('2d');
 const UI = {
     score: document.getElementById('score-display'),
     level: document.getElementById('level-display'),
+    combo: document.getElementById('combo-display'),
+    surge: document.getElementById('surge-display'),
+    energyFill: document.getElementById('energy-fill'),
     menuOverlay: document.getElementById('menu-overlay'),
+    selectOverlay: document.getElementById('game-select-overlay'),
+    selectGrid: document.getElementById('game-select-grid'),
     rescueOverlay: document.getElementById('rescue-overlay'),
     missileOverlay: document.getElementById('missile-alert-overlay'),
     title: document.getElementById('title-text'),
     sub: document.getElementById('sub-text'),
     btn: document.getElementById('start-btn'),
-    rescueCount: document.getElementById('rescue-countdown')
+    rescueCount: document.getElementById('rescue-countdown'),
+    selectedGame: document.getElementById('selected-game')
 };
 
 const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2, LEVEL_CLEAR: 3, VICTORY: 4 };
@@ -346,6 +512,19 @@ let inputX = 0;
 
 let tntActive = false;
 let tntTimer = 0;
+let selectedGame = '';
+
+let comboCount = 0;
+let comboTimer = 0;
+let comboMultiplier = 1;
+
+let energy = 0;
+let surgeTimer = 0;
+
+const COMBO_TIMEOUT = 2500;
+const MAX_ENERGY = 100;
+
+const SHAKE = { time: 0, intensity: 0 };
 
 let lastBrickHitTime = 0; 
 let isRescueCounting = false; 
@@ -396,6 +575,78 @@ UI.btn.addEventListener('click', () => {
     }
     AudioSys.playPowerUp();
 });
+
+function triggerShake(intensity, duration) {
+    SHAKE.intensity = Math.max(SHAKE.intensity, intensity);
+    SHAKE.time = Math.max(SHAKE.time, duration);
+}
+
+function registerCombo() {
+    comboCount += 1;
+    comboTimer = COMBO_TIMEOUT;
+    comboMultiplier = 1 + Math.min(3, Math.floor(comboCount / 5) * 0.5);
+}
+
+function resetCombo() {
+    comboCount = 0;
+    comboTimer = 0;
+    comboMultiplier = 1;
+}
+
+function addEnergy(amount) {
+    energy = Math.min(MAX_ENERGY, energy + amount);
+    if (energy >= MAX_ENERGY && surgeTimer <= 0) {
+        startSurge();
+    }
+}
+
+function startSurge() {
+    surgeTimer = 6000;
+    energy = 0;
+    AudioSys.playSurge();
+}
+
+function updateHUD() {
+    const multiplierText = comboMultiplier.toFixed(1).replace('.0', '');
+    UI.combo.innerText = `COMBO x${multiplierText}`;
+    UI.energyFill.style.width = `${(energy / MAX_ENERGY) * 100}%`;
+    if (surgeTimer > 0) {
+        UI.surge.innerText = 'CRYSTAL SURGE ACTIVE';
+    } else {
+        UI.surge.innerText = energy >= MAX_ENERGY ? 'CRYSTAL SURGE READY' : 'CRYSTAL SURGE CHARGING';
+    }
+}
+
+const GAME_LIBRARY = Array.from({ length: 100 }, (_, i) => {
+    const number = (i + 1).toString().padStart(3, '0');
+    return {
+        id: `mega-${number}`,
+        name: `Mega Realistic Breaker ${number}`,
+        desc: '超高精細な氷晶演出と物理演算が融合した大型ブロック崩し。',
+        tags: ['4K', 'Physics', 'Cinematic']
+    };
+});
+
+function renderGameSelect() {
+    UI.selectGrid.innerHTML = '';
+    GAME_LIBRARY.forEach((game) => {
+        const card = document.createElement('button');
+        card.className = 'game-card';
+        card.type = 'button';
+        card.innerHTML = `
+            <div class="game-title">${game.name}</div>
+            <div class="game-meta">${game.desc}</div>
+            <div class="game-tags">${game.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+        `;
+        card.addEventListener('click', () => {
+            selectedGame = game.name;
+            UI.selectedGame.textContent = `Selected: ${game.name}`;
+            UI.selectOverlay.classList.remove('visible');
+            UI.menuOverlay.classList.add('visible');
+        });
+        UI.selectGrid.appendChild(card);
+    });
+}
 
 /**
  * Classes
@@ -559,6 +810,8 @@ class Ball {
         this.speed = 2.8; 
         this.maxSpeed = 5.5; 
         this.penetrate = false; this.penetrateTimer = 0;
+        this.trail = [];
+        this.trailMax = 12;
     }
     launch() {
         if (this.stuck) {
@@ -578,6 +831,9 @@ class Ball {
             this.y = paddle.y - this.radius - 2;
             return;
         }
+
+        this.trail.push({ x: this.x, y: this.y });
+        if (this.trail.length > this.trailMax) this.trail.shift();
         
         const currentSpeed = Math.hypot(this.dx, this.dy);
         const minSpeed = 2.5;
@@ -665,7 +921,18 @@ class Ball {
         }
     }
     draw() {
-        CTX.save(); CTX.translate(this.x, this.y);
+        CTX.save();
+        for (let i = 0; i < this.trail.length; i++) {
+            const t = this.trail[i];
+            const alpha = (i + 1) / this.trail.length;
+            CTX.globalAlpha = alpha * 0.35;
+            CTX.beginPath();
+            CTX.arc(t.x, t.y, this.radius + 2, 0, Math.PI * 2);
+            CTX.fillStyle = this.penetrate ? 'rgba(255,120,0,0.6)' : 'rgba(150,220,255,0.6)';
+            CTX.fill();
+        }
+        CTX.globalAlpha = 1;
+        CTX.translate(this.x, this.y);
         if (this.penetrate) {
             CTX.shadowBlur = 15; CTX.shadowColor = '#ff2200';
             const pulse = 1 + Math.sin(Date.now() / 100) * 0.15; CTX.scale(pulse, pulse);
@@ -746,10 +1013,16 @@ class Brick {
     hit(damage, fromExplosion = false) {
         this.hp -= damage;
         lastBrickHitTime = Date.now();
+        registerCombo();
+        addEnergy(3);
         createParticles(this.x+this.w/2, this.y+this.h/2, '#ccffff', 4);
         if (this.hp > 0) { AudioSys.playGlassDamage(); } 
         else {
-            this.active = false; score += (this.type + 1) * 100;
+            const surgeBonus = surgeTimer > 0 ? 0.5 : 0;
+            const scoreMultiplier = comboMultiplier + surgeBonus;
+            const baseScore = (this.type + 1) * 100;
+            this.active = false; score += Math.round(baseScore * scoreMultiplier);
+            addEnergy(8);
             if (this.type === 2) AudioSys.playExplosion(); else AudioSys.playGlassBreak();
             let shardColor = (this.type === 2) ? '#ff5500' : ((this.type === 1) ? '#88aaff' : `hsl(${this.hue}, 80%, 80%)`);
             createShards(this.x, this.y, this.w, this.h, shardColor);
@@ -880,6 +1153,7 @@ function createShards(x, y, w, h, color) {
 }
 function triggerExplosion(x, y, withDamage = false) {
     AudioSys.playExplosion();
+    triggerShake(8, 400);
     createParticles(x, y, '#ff5500', 30);
     if (withDamage) {
         bricks.forEach(b => {
@@ -894,6 +1168,7 @@ function triggerExplosion(x, y, withDamage = false) {
 // ミサイル着弾処理
 function triggerMissileImpact() {
     AudioSys.playMissileImpact();
+    triggerShake(10, 500);
     const alert = UI.missileOverlay;
     alert.classList.add('visible');
     
@@ -918,6 +1193,9 @@ function startLevel(lvl) {
     paddle = new Paddle();
     balls = [new Ball(0, 0, 0, 0, true)];
     tntActive = false;
+    resetCombo();
+    energy = 0;
+    surgeTimer = 0;
     powerUps = []; lasers = []; particles = []; shards = [];
     obstacles = []; missiles = [];
     
@@ -954,6 +1232,7 @@ function startLevel(lvl) {
 
     drawLives();
     lastBrickHitTime = Date.now();
+    updateHUD();
 }
 
 function generateLevel(lvl) {
@@ -1174,6 +1453,7 @@ function checkClear() {
 
 function loseLife() {
     lives--; drawLives(); AudioSys.playDamage();
+    resetCombo();
     if (lives < 0) {
         gameState = STATE.GAME_OVER;
         UI.title.innerText = "GAME OVER";
@@ -1252,12 +1532,34 @@ function loop() {
     const dt = now - lastTime;
     lastTime = now;
 
+    if (comboTimer > 0) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) resetCombo();
+    }
+
+    if (surgeTimer > 0) {
+        surgeTimer -= dt;
+        if (surgeTimer <= 0) surgeTimer = 0;
+    }
+
     if (tntActive) {
         tntTimer -= dt;
         if (tntTimer <= 0) tntActive = false;
     }
 
+    CTX.setTransform(1, 0, 0, 1, 0, 0);
     CTX.clearRect(0, 0, CANVAS.width, CANVAS.height);
+
+    let shakeX = 0;
+    let shakeY = 0;
+    if (SHAKE.time > 0) {
+        SHAKE.time -= dt;
+        shakeX = (Math.random() - 0.5) * SHAKE.intensity;
+        shakeY = (Math.random() - 0.5) * SHAKE.intensity;
+        if (SHAKE.time <= 0) SHAKE.intensity = 0;
+    }
+    CTX.save();
+    CTX.translate(shakeX, shakeY);
 
     if (gameState === STATE.PLAYING || gameState === STATE.LEVEL_CLEAR) {
         if (gameState === STATE.PLAYING) {
@@ -1309,14 +1611,27 @@ function loop() {
             if(s.life <= 0 || s.y > CANVAS.height) shards.splice(i, 1);
         });
         
+        if (surgeTimer > 0) {
+            const glowX = paddle.x + paddle.width / 2;
+            const glowY = paddle.y - 30;
+            const glow = CTX.createRadialGradient(glowX, glowY, 10, glowX, glowY, 180);
+            glow.addColorStop(0, 'rgba(255, 220, 140, 0.25)');
+            glow.addColorStop(1, 'rgba(255, 220, 140, 0)');
+            CTX.fillStyle = glow;
+            CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
+        }
+
         CTX.globalAlpha = 1.0;
         UI.score.innerText = `SCORE: ${score}`;
         UI.level.innerText = `STAGE: ${currentLevel}`;
+        updateHUD();
     }
+    CTX.restore();
     requestAnimationFrame(loop);
 }
 
-window.onload = () => { resize(); drawLives(); loop(); };
+window.onload = () => { resize(); drawLives(); updateHUD(); loop(); };
+renderGameSelect();
 </script>
 </body>
 </html>
