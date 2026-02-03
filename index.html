@@ -3,27 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="google-site-verification" content="8L5X3LUWx0SJdjI-gBx3AiqJiIEifiOzpQCynqPbyjQ" />
-    <title>Ice Breaker パリン、ガシャーン氷ブロック崩しゲーム</title>
+    <title>氷ブロック崩し10ラウンド</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #050510;
             background-image: radial-gradient(circle at 50% 120%, #102040 0%, #000010 80%);
-            font-family: 'Segoe UI', sans-serif;
+            font-family: sans-serif;
             touch-action: none;
             user-select: none;
         }
         canvas { display: block; }
-        
         #ui-layer {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none;
             padding: 15px;
             box-sizing: border-box;
-            z-index: 10;
         }
         .hud {
             color: #fff;
@@ -36,74 +33,21 @@
             width: 100%;
         }
         #lives-canvas { display: block; }
-        
-        .overlay {
+        #message-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 0;
-        }
-        
-        .visible {
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            z-index: 100 !important;
-        }
-
-        #menu-overlay {
-            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            opacity: 1;
+            transition: opacity 0.3s;
+            pointer-events: auto;
             backdrop-filter: blur(5px);
+            z-index: 20;
         }
-
-        #rescue-overlay {
-            justify-content: flex-start;
-            padding-top: 100px;
-            pointer-events: none !important;
-        }
-
-        #missile-alert-overlay {
-            background: rgba(255, 0, 0, 0.5);
-            animation: flashRed 0.15s infinite alternate;
-            pointer-events: none;
-        }
-
-        @keyframes flashRed {
-            from { background: rgba(255, 0, 0, 0.3); }
-            to { background: rgba(255, 0, 0, 0.7); }
-        }
-
-        .alert-box {
-            border: 8px solid #ff0000;
-            background: #000;
-            padding: 30px;
-            transform: rotate(-3deg);
-            box-shadow: 0 0 50px #ff0000;
-            text-align: center;
-        }
-        
-        .alert-title {
-            font-size: 60px;
-            color: #ff0000;
-            font-weight: 900;
-            margin: 0;
-            line-height: 1;
-            text-shadow: 4px 4px 0 #330000;
-        }
-        
-        .alert-sub {
-            font-size: 24px;
-            color: #fff;
-            margin-top: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
         h1 {
             font-size: 40px;
             margin: 0 0 20px 0;
@@ -114,28 +58,6 @@
             text-align: center;
             letter-spacing: 2px;
         }
-        
-        .rescue-title {
-            font-size: 32px;
-            color: #ffaa00;
-            text-shadow: 0 0 10px rgba(0,0,0,0.8);
-            margin-bottom: 10px;
-            animation: pulse 1s infinite;
-        }
-        
-        .countdown {
-            font-size: 60px;
-            font-weight: bold;
-            color: white;
-            text-shadow: 0 0 20px rgba(0,0,0,0.8);
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.8; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
         p { font-size: 16px; color: #aaccff; margin: 5px 0; text-align: center; }
         .btn {
             margin-top: 25px;
@@ -166,6 +88,7 @@
             border: 1px solid rgba(100,200,255,0.2);
         }
         .legend-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #ddeeff; }
+        .hidden { display: none !important; pointer-events: none !important; }
     </style>
 </head>
 <body>
@@ -182,22 +105,8 @@
     </div>
 </div>
 
-<div id="rescue-overlay" class="overlay">
-    <div class="rescue-title">RESCUE MODE</div>
-    <div id="rescue-countdown" class="countdown">5</div>
-    <p style="text-shadow: 0 0 5px black;">Auto-fire incoming!</p>
-</div>
-
-<div id="missile-alert-overlay" class="overlay">
-    <div class="alert-box">
-        <div class="alert-title">WARNING</div>
-        <div class="alert-sub">PADDLE DAMAGED!</div>
-        <div class="alert-sub" style="font-size: 18px; color: #ffaaaa;">LIFE -1</div>
-    </div>
-</div>
-
-<div id="menu-overlay" class="overlay visible">
-    <h1 id="title-text">CRYSTAL BREAKER</h1>
+<div id="message-overlay">
+    <h1 id="title-text">PARIN CRASH</h1>
     <p id="sub-text">Tap Start to Play</p>
     
     <div class="legend">
@@ -259,20 +168,27 @@ const AudioSys = {
         }
         noise.start();
     },
+    // 【ダメージ音】パリン（軽いガラス音）
     playGlassDamage: function() { 
         if(!this.ctx) return;
+        // 高音の短いトーンで「チリン」感を出す
         this.playTone(2000, 'sine', 0.05, 0.1);
         this.playTone(3500, 'triangle', 0.05, 0.05);
+        // 少しだけノイズを混ぜて「割れかけ」感を出す
         this.playNoise(0.05, 0.1, 3000);
     },
+    // 【破壊音】ガシャーン（重いガラス破砕音）
     playGlassBreak: function() { 
         if(!this.ctx) return;
+        // 激しいノイズ
         this.playNoise(0.3, 0.4, 500); 
+        // 複数の不協和音を重ねて複雑な響きに
         this.playTone(1500, 'sawtooth', 0.15, 0.15, -500); 
         this.playTone(2500, 'square', 0.1, 0.1);
-        setTimeout(() => this.playTone(3500, 'sine', 0.2, 0.1), 20); 
-        setTimeout(() => this.playTone(800, 'sawtooth', 0.2, 0.1, -200), 10); 
+        setTimeout(() => this.playTone(3500, 'sine', 0.2, 0.1), 20); // 遅れて響く高音
+        setTimeout(() => this.playTone(800, 'sawtooth', 0.2, 0.1, -200), 10); // 低音の衝撃
     },
+    
     playHitSoft: function() { this.playTone(400, 'sine', 0.05, 0.1); },
     playLaser: function() { this.playTone(1000, 'sawtooth', 0.05, 0.02, -800); },
     playExplosion: function() { this.playNoise(0.4, 0.6); this.playTone(60, 'sawtooth', 0.3, 0.4, -60); },
@@ -283,21 +199,6 @@ const AudioSys = {
         if(!this.ctx) return;
         this.playNoise(0.15, 0.5, 200);
         this.playTone(150, 'square', 0.1, 0.1, -100);
-    },
-    playRescue: function() { 
-        this.playTone(600, 'sine', 0.1, 0.1);
-        setTimeout(() => this.playTone(800, 'sine', 0.3, 0.1), 150);
-        setTimeout(() => this.playTone(1000, 'sine', 0.5, 0.2), 300);
-    },
-    playMissileImpact: function() {
-        if(!this.ctx) return;
-        this.playNoise(0.8, 0.8, 100);
-        this.playTone(60, 'sawtooth', 0.8, 0.5, -30);
-        this.playTone(150, 'square', 0.3, 0.3, -100);
-    },
-    playBumper: function() {
-        this.playTone(600, 'sine', 0.1, 0.2, 200);
-        this.playTone(800, 'sine', 0.1, 0.1);
     }
 };
 
@@ -312,13 +213,10 @@ const LIVES_CTX = LIVES_CANVAS.getContext('2d');
 const UI = {
     score: document.getElementById('score-display'),
     level: document.getElementById('level-display'),
-    menuOverlay: document.getElementById('menu-overlay'),
-    rescueOverlay: document.getElementById('rescue-overlay'),
-    missileOverlay: document.getElementById('missile-alert-overlay'),
+    overlay: document.getElementById('message-overlay'),
     title: document.getElementById('title-text'),
     sub: document.getElementById('sub-text'),
-    btn: document.getElementById('start-btn'),
-    rescueCount: document.getElementById('rescue-countdown')
+    btn: document.getElementById('start-btn')
 };
 
 const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2, LEVEL_CLEAR: 3, VICTORY: 4 };
@@ -340,15 +238,10 @@ let powerUps = [];
 let particles = [];
 let shards = [];
 let lasers = [];
-let obstacles = [];
-let missiles = [];
 let inputX = 0;
 
 let tntActive = false;
 let tntTimer = 0;
-
-let lastBrickHitTime = 0; 
-let isRescueCounting = false; 
 
 /**
  * Setup
@@ -382,12 +275,7 @@ window.addEventListener('keydown', e => { if(e.code === 'Space') handleAction();
 
 UI.btn.addEventListener('click', () => {
     AudioSys.init();
-    if (gameState === STATE.LEVEL_CLEAR) return;
-
-    if (gameState === STATE.GAME_OVER) {
-        lives = INITIAL_LIVES;
-        startLevel(currentLevel);
-    } else if (gameState === STATE.VICTORY) {
+    if (gameState === STATE.GAME_OVER || gameState === STATE.VICTORY) {
         lives = INITIAL_LIVES; score = 0; currentLevel = 1;
         startLevel(currentLevel);
     } else {
@@ -432,13 +320,20 @@ class Paddle {
         CTX.save();
         CTX.shadowBlur = 15;
         CTX.shadowColor = this.laserActive ? '#ff4400' : '#00aaff';
+        
         let grad = CTX.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
         grad.addColorStop(0, this.laserActive ? '#fff0f0' : '#e0f0ff');
         grad.addColorStop(0.5, this.laserActive ? '#ff2200' : '#0088ff');
         grad.addColorStop(1, '#002244');
+        
         CTX.fillStyle = grad;
-        CTX.beginPath(); CTX.roundRect(this.x, this.y, this.width, this.height, 8); CTX.fill();
-        CTX.fillStyle = 'rgba(255,255,255,0.4)'; CTX.fillRect(this.x + 10, this.y + 3, this.width - 20, 2);
+        CTX.beginPath();
+        CTX.roundRect(this.x, this.y, this.width, this.height, 8);
+        CTX.fill();
+        
+        CTX.fillStyle = 'rgba(255,255,255,0.4)';
+        CTX.fillRect(this.x + 10, this.y + 3, this.width - 20, 2);
+
         if (this.laserActive) {
             CTX.fillStyle = '#ffaa00';
             const recoil = Math.sin(Date.now() / 50) * 2;
@@ -459,95 +354,6 @@ class Paddle {
     }
 }
 
-class Obstacle { 
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.radius = 18; 
-        this.hue = 0;
-    }
-    draw() {
-        this.hue = (this.hue + 2) % 360;
-        CTX.save();
-        CTX.beginPath();
-        CTX.arc(this.x, this.y, this.radius, 0, Math.PI*2);
-        CTX.shadowBlur = 10;
-        CTX.shadowColor = `hsl(${this.hue}, 100%, 50%)`;
-        const grad = CTX.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
-        grad.addColorStop(0, '#fff');
-        grad.addColorStop(0.5, `hsl(${this.hue}, 100%, 50%)`);
-        grad.addColorStop(1, `hsl(${(this.hue+180)%360}, 100%, 20%)`);
-        CTX.fillStyle = grad;
-        CTX.fill();
-        CTX.strokeStyle = '#fff';
-        CTX.lineWidth = 2;
-        CTX.stroke();
-        CTX.restore();
-    }
-}
-
-class Missile { 
-    constructor() {
-        this.width = 14;
-        this.height = 45;
-        this.x = Math.random() * (CANVAS.width - this.width);
-        this.y = -50;
-        this.speed = 2.5; 
-        this.active = true;
-    }
-    update() {
-        this.y += this.speed;
-        if (this.y > CANVAS.height) this.active = false;
-        if (this.active &&
-            this.x < paddle.x + paddle.width &&
-            this.x + this.width > paddle.x &&
-            this.y < paddle.y + paddle.height &&
-            this.y + this.height > paddle.y) {
-            
-            this.active = false;
-            triggerMissileImpact();
-        }
-    }
-    draw() {
-        CTX.save();
-        CTX.shadowBlur = 8;
-        CTX.shadowColor = 'rgba(255, 0, 0, 0.8)';
-        const cx = this.x + this.width / 2;
-        CTX.fillStyle = '#ff0000';
-        CTX.beginPath();
-        CTX.moveTo(this.x, this.y + 10);
-        CTX.lineTo(cx, this.y + this.height); 
-        CTX.lineTo(this.x + this.width, this.y + 10);
-        CTX.fill();
-        const bodyGrad = CTX.createLinearGradient(this.x, this.y, this.x + this.width, this.y);
-        bodyGrad.addColorStop(0, '#550000');
-        bodyGrad.addColorStop(0.2, '#aa0000');
-        bodyGrad.addColorStop(0.5, '#ff4444');
-        bodyGrad.addColorStop(0.8, '#aa0000');
-        bodyGrad.addColorStop(1, '#550000');
-        CTX.fillStyle = bodyGrad;
-        CTX.fillRect(this.x, this.y, this.width, this.height - 10); 
-        CTX.fillStyle = '#880000';
-        CTX.beginPath();
-        CTX.moveTo(this.x, this.y);
-        CTX.lineTo(this.x - 8, this.y - 10);
-        CTX.lineTo(this.x, this.y + 15);
-        CTX.fill();
-        CTX.beginPath();
-        CTX.moveTo(this.x + this.width, this.y);
-        CTX.lineTo(this.x + this.width + 8, this.y - 10);
-        CTX.lineTo(this.x + this.width, this.y + 15);
-        CTX.fill();
-        CTX.fillStyle = `rgba(255, 200, 0, ${0.5 + Math.random()*0.5})`;
-        CTX.beginPath();
-        CTX.moveTo(this.x + 2, this.y);
-        CTX.lineTo(cx, this.y - 15 - Math.random() * 10);
-        CTX.lineTo(this.x + this.width - 2, this.y);
-        CTX.fill();
-        CTX.restore();
-    }
-}
-
 class Ball {
     constructor(x, y, dx, dy, isStuck = false) {
         this.radius = 6;
@@ -556,10 +362,10 @@ class Ball {
         this.dx = dx || 0;
         this.dy = dy || 0;
         this.stuck = isStuck;
-        this.speed = 2.8; 
-        this.maxSpeed = 5.5; 
-        this.penetrate = false; this.penetrateTimer = 0;
+        this.speed = 3.5; 
+        this.maxSpeed = 6.5; 
     }
+
     launch() {
         if (this.stuck) {
             this.stuck = false;
@@ -568,33 +374,22 @@ class Ball {
             AudioSys.playHitSoft();
         }
     }
-    update(dt) {
-        if (this.penetrate) {
-            this.penetrateTimer -= dt;
-            if (this.penetrateTimer <= 0) this.penetrate = false;
-        }
+
+    update() {
         if (this.stuck) {
             this.x = paddle.x + paddle.width/2;
             this.y = paddle.y - this.radius - 2;
             return;
         }
-        
-        const currentSpeed = Math.hypot(this.dx, this.dy);
-        const minSpeed = 2.5;
-        if (currentSpeed < minSpeed && currentSpeed > 0.1) {
-            const scale = minSpeed / currentSpeed;
-            this.dx *= scale;
-            this.dy *= scale;
-        }
-        if (Math.abs(this.dy) < 0.5) {
-            this.dy += (this.dy >= 0 ? 0.5 : -0.5);
-        }
 
         const steps = 4;
         const stepDx = this.dx / steps;
         const stepDy = this.dy / steps;
+
         for (let i = 0; i < steps; i++) {
-            this.x += stepDx; this.y += stepDy;
+            this.x += stepDx;
+            this.y += stepDy;
+
             let collided = false;
             if (this.x < this.radius) { this.x = this.radius; this.dx = Math.abs(this.dx); collided = true; }
             if (this.x > CANVAS.width - this.radius) { this.x = CANVAS.width - this.radius; this.dx = -Math.abs(this.dx); collided = true; }
@@ -611,9 +406,9 @@ class Ball {
                 let hitPos = (this.x - (paddle.x + paddle.width/2)) / (paddle.width/2);
                 this.dx = hitPos * (this.speed * 1.5); 
                 
-                let s = Math.hypot(this.dx, this.dy);
-                if (s > this.maxSpeed) {
-                    let scale = this.maxSpeed / s;
+                let currentSpeed = Math.hypot(this.dx, this.dy);
+                if (currentSpeed > this.maxSpeed) {
+                    let scale = this.maxSpeed / currentSpeed;
                     this.dx *= scale;
                     this.dy *= scale;
                 }
@@ -622,61 +417,64 @@ class Ball {
                 break;
             }
 
-            for (let obs of obstacles) {
-                const dist = Math.hypot(this.x - obs.x, this.y - obs.y);
-                if (dist < this.radius + obs.radius) {
-                    const nx = (this.x - obs.x) / dist;
-                    const ny = (this.y - obs.y) / dist;
-                    const dot = this.dx * nx + this.dy * ny;
-                    this.dx = this.dx - 2 * dot * nx;
-                    this.dy = this.dy - 2 * dot * ny;
-                    const overlap = (this.radius + obs.radius) - dist;
-                    this.x += nx * overlap;
-                    this.y += ny * overlap;
-                    AudioSys.playBumper();
-                    createParticles((this.x+obs.x)/2, (this.y+obs.y)/2, `hsl(${obs.hue},100%,70%)`, 3);
-                    collided = true;
-                    break;
-                }
-            }
-            if (collided) break;
-
             let hitBlock = false;
             for (let b of bricks) {
                 if (!b.active) continue;
                 if (this.x + this.radius > b.x && this.x - this.radius < b.x + b.w &&
                     this.y + this.radius > b.y && this.y - this.radius < b.y + b.h) {
-                    if (!this.penetrate) {
+                    
+                    if (!tntActive) {
                         const overlapLeft = (this.x + this.radius) - b.x;
                         const overlapRight = (b.x + b.w) - (this.x - this.radius);
                         const overlapTop = (this.y + this.radius) - b.y;
                         const overlapBottom = (b.y + b.h) - (this.y - this.radius);
                         const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+                        
                         if (minOverlap === overlapLeft || minOverlap === overlapRight) this.dx *= -1;
                         else this.dy *= -1;
                     } else {
-                        AudioSys.playDrill(); createParticles(this.x, this.y, '#ff4400', 10);
+                        AudioSys.playDrill(); // 貫通音
+                        createParticles(this.x, this.y, '#ff4400', 10);
                     }
-                    b.hit(this.penetrate ? 10 : 1);
-                    hitBlock = true; break;
+                    
+                    b.hit(tntActive ? 10 : 1);
+                    hitBlock = true;
+                    break;
                 }
             }
             if (hitBlock) break;
         }
     }
+
     draw() {
-        CTX.save(); CTX.translate(this.x, this.y);
-        if (this.penetrate) {
-            CTX.shadowBlur = 15; CTX.shadowColor = '#ff2200';
-            const pulse = 1 + Math.sin(Date.now() / 100) * 0.15; CTX.scale(pulse, pulse);
+        CTX.save();
+        CTX.translate(this.x, this.y);
+        
+        if (tntActive) {
+            // TNTボール
+            CTX.shadowBlur = 15;
+            CTX.shadowColor = '#ff2200';
+            const pulse = 1 + Math.sin(Date.now() / 100) * 0.15;
+            CTX.scale(pulse, pulse);
             let grad = CTX.createRadialGradient(0, 0, 0, 0, 0, this.radius);
-            grad.addColorStop(0, '#ffff00'); grad.addColorStop(1, '#ff0000');
-            CTX.fillStyle = grad; CTX.beginPath(); CTX.arc(0, 0, this.radius, 0, Math.PI * 2); CTX.fill();
+            grad.addColorStop(0, '#ffff00');
+            grad.addColorStop(1, '#ff0000');
+            CTX.fillStyle = grad;
+            CTX.beginPath();
+            CTX.arc(0, 0, this.radius, 0, Math.PI * 2);
+            CTX.fill();
         } else {
-            CTX.shadowBlur = 8; CTX.shadowColor = '#88ffff';
+            // 通常ボール
+            CTX.shadowBlur = 8;
+            CTX.shadowColor = '#88ffff';
             let grad = CTX.createRadialGradient(0, 0, 0, 0, 0, this.radius);
-            grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.5, '#d0eeff'); grad.addColorStop(1, '#0088ff');
-            CTX.fillStyle = grad; CTX.beginPath(); CTX.arc(0, 0, this.radius, 0, Math.PI * 2); CTX.fill();
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.5, '#d0eeff');
+            grad.addColorStop(1, '#0088ff');
+            CTX.fillStyle = grad;
+            CTX.beginPath();
+            CTX.arc(0, 0, this.radius, 0, Math.PI * 2);
+            CTX.fill();
         }
         CTX.restore();
     }
@@ -685,82 +483,133 @@ class Ball {
 class Brick {
     constructor(x, y, w, h, type, level) {
         this.x = x; this.y = y; this.w = w; this.h = h;
-        this.setType(type, level);
-        this.cracks = [];
-        for(let i=0; i<3; i++) {
-            const cx = 0.3 + Math.random() * 0.4; const cy = 0.3 + Math.random() * 0.4;
-            const points = []; const branches = 3 + Math.floor(Math.random() * 3);
-            for(let j=0; j<branches; j++) {
-                const angle = (Math.PI * 2 * j / branches) + (Math.random() * 0.5);
-                const len = 0.3 + Math.random() * 0.5;
-                points.push({ x1: cx, y1: cy, x2: cx + Math.cos(angle) * len, y2: cy + Math.sin(angle) * len });
-            }
-            this.cracks.push(points);
-        }
-        this.hue = 190 + Math.random() * 30;
-    }
-    setType(type, level) {
-        this.type = type;
+        this.type = type; // 0:Crystal, 1:Hard, 2:TNT
         this.active = true;
-        if (type === 1) { // Hard
+        
+        if (type === 1) {
             this.maxHp = 2 + Math.floor(level / 2.5);
             this.hp = this.maxHp;
         } else {
-            this.maxHp = 1;
-            this.hp = 1;
+            this.maxHp = 1; this.hp = 1;
         }
+
+        this.cracks = [];
+        const numCracks = 3; 
+        for(let i=0; i<numCracks; i++) {
+            const cx = 0.3 + Math.random() * 0.4;
+            const cy = 0.3 + Math.random() * 0.4;
+            const points = [];
+            const branches = 3 + Math.floor(Math.random() * 3);
+            for(let j=0; j<branches; j++) {
+                const angle = (Math.PI * 2 * j / branches) + (Math.random() * 0.5);
+                const len = 0.3 + Math.random() * 0.5;
+                points.push({
+                    x1: cx, y1: cy,
+                    x2: cx + Math.cos(angle) * len, y2: cy + Math.sin(angle) * len
+                });
+                if (Math.random() > 0.5) {
+                    points.push({
+                        x1: cx + Math.cos(angle) * (len*0.5), y1: cy + Math.sin(angle) * (len*0.5),
+                        x2: cx + Math.cos(angle + 0.5) * (len*0.5), y2: cy + Math.sin(angle + 0.5) * (len*0.5)
+                    });
+                }
+            }
+            this.cracks.push(points);
+        }
+        
+        this.hue = 190 + Math.random() * 30;
     }
+
     draw() {
         if (!this.active) return;
         CTX.save();
         const isHard = (this.type === 1);
+        
         if (this.type === 2) { 
-            CTX.fillStyle = 'rgba(255, 50, 0, 0.7)'; CTX.fillRect(this.x, this.y, this.w, this.h);
-            CTX.strokeStyle = '#ffaa00'; CTX.lineWidth = 2; CTX.strokeRect(this.x, this.y, this.w, this.h);
-            CTX.fillStyle = '#ffff00'; CTX.font = 'bold 11px sans-serif';
-            CTX.textAlign = 'center'; CTX.textBaseline = 'middle'; CTX.fillText("TNT", this.x + this.w/2, this.y + this.h/2); 
+            CTX.fillStyle = 'rgba(255, 50, 0, 0.7)';
+            CTX.fillRect(this.x, this.y, this.w, this.h);
+            CTX.strokeStyle = '#ffaa00';
+            CTX.lineWidth = 2;
+            CTX.strokeRect(this.x, this.y, this.w, this.h);
+            CTX.fillStyle = '#ffff00';
+            CTX.font = 'bold 11px sans-serif';
+            CTX.textAlign = 'center'; CTX.textBaseline = 'middle';
+            CTX.fillText("TNT", this.x + this.w/2, this.y + this.h/2); 
         } else {
-            let baseColor = isHard ? `hsla(220, 80%, 30%, 0.85)` : `hsla(${this.hue}, 90%, 60%, 0.7)`;
+            let baseColor;
+            if (isHard) {
+                baseColor = `hsla(220, 80%, 30%, 0.85)`;
+            } else {
+                baseColor = `hsla(${this.hue}, 90%, 60%, 0.7)`;
+            }
+
             let grad = CTX.createLinearGradient(this.x, this.y, this.x, this.y + this.h);
-            grad.addColorStop(0, 'rgba(255,255,255,0.4)'); grad.addColorStop(0.5, baseColor);
+            grad.addColorStop(0, 'rgba(255,255,255,0.4)');
+            grad.addColorStop(0.5, baseColor);
             grad.addColorStop(1, isHard ? 'rgba(0,10,50,0.8)' : `hsla(${this.hue}, 90%, 40%, 0.8)`);
-            CTX.fillStyle = grad; CTX.fillRect(this.x, this.y, this.w, this.h);
+            
+            CTX.fillStyle = grad;
+            CTX.fillRect(this.x, this.y, this.w, this.h);
+            
             CTX.strokeStyle = isHard ? 'rgba(200,220,255,0.8)' : 'rgba(255,255,255,0.6)';
-            CTX.lineWidth = isHard ? 2 : 1; CTX.strokeRect(this.x, this.y, this.w, this.h);
+            CTX.lineWidth = isHard ? 2 : 1;
+            CTX.strokeRect(this.x, this.y, this.w, this.h);
+
             CTX.fillStyle = 'rgba(255,255,255,0.25)';
-            CTX.beginPath(); CTX.moveTo(this.x, this.y);
-            CTX.lineTo(this.x + this.w * 0.7, this.y); CTX.lineTo(this.x, this.y + this.h * 0.7); CTX.fill();
+            CTX.beginPath();
+            CTX.moveTo(this.x, this.y);
+            CTX.lineTo(this.x + this.w * 0.7, this.y);
+            CTX.lineTo(this.x, this.y + this.h * 0.7);
+            CTX.fill();
+
             if (isHard && this.hp < this.maxHp) {
-                CTX.strokeStyle = 'rgba(255, 255, 255, 0.8)'; CTX.lineWidth = 1.2; CTX.beginPath();
+                CTX.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                CTX.lineWidth = 1.2;
+                CTX.beginPath();
                 const damagePercent = (this.maxHp - this.hp) / this.maxHp; 
                 const visibleCracks = Math.ceil(damagePercent * this.cracks.length);
                 for(let i=0; i < visibleCracks; i++) {
                     const crackGroup = this.cracks[i];
-                    for (let p of crackGroup) { CTX.moveTo(this.x + this.w * p.x1, this.y + this.h * p.y1); CTX.lineTo(this.x + this.w * p.x2, this.y + this.h * p.y2); }
+                    for (let p of crackGroup) {
+                        CTX.moveTo(this.x + this.w * p.x1, this.y + this.h * p.y1);
+                        CTX.lineTo(this.x + this.w * p.x2, this.y + this.h * p.y2);
+                    }
                 }
                 CTX.stroke();
             }
         }
         CTX.restore();
     }
-    hit(damage, fromExplosion = false) {
+    
+    hit(damage) {
         this.hp -= damage;
-        lastBrickHitTime = Date.now();
         createParticles(this.x+this.w/2, this.y+this.h/2, '#ccffff', 4);
-        if (this.hp > 0) { AudioSys.playGlassDamage(); } 
-        else {
-            this.active = false; score += (this.type + 1) * 100;
-            if (this.type === 2) AudioSys.playExplosion(); else AudioSys.playGlassBreak();
-            let shardColor = (this.type === 2) ? '#ff5500' : ((this.type === 1) ? '#88aaff' : `hsl(${this.hue}, 80%, 80%)`);
+        
+        if (this.hp > 0) {
+            // ダメージ音：パリン（軽いガラス音）
+            AudioSys.playGlassDamage();
+        } else {
+            this.active = false;
+            score += (this.type + 1) * 100;
+            
+            // 破壊音の分岐
+            if (this.type === 2) AudioSys.playExplosion(); // TNT: 爆発
+            else AudioSys.playGlassBreak(); // 通常 & Hard: ガシャーン（派手なガラス破壊音）
+            
+            let shardColor;
+            if (this.type === 2) shardColor = '#ff5500';
+            else if (this.type === 1) shardColor = '#88aaff';
+            else shardColor = `hsl(${this.hue}, 80%, 80%)`;
+            
             createShards(this.x, this.y, this.w, this.h, shardColor);
             
-            let dropRate = 0.05; 
-            if (fromExplosion) {
-                dropRate = 0.10; 
-            }
+            const dropRate = 0.15 + (Math.random() * 0.1); 
             if (Math.random() < dropRate) powerUps.push(new PowerUp(this.x + this.w/2, this.y + this.h/2));
 
-            if (this.type === 2) triggerExplosion(this.x + this.w/2, this.y + this.h/2, true);
+            // TNTブロック破壊時 -> 周囲破壊爆発
+            if (this.type === 2) {
+                 triggerExplosion(this.x + this.w/2, this.y + this.h/2, true);
+            }
             checkClear();
         }
     }
@@ -770,51 +619,66 @@ class PowerUp {
     constructor(x, y) {
         this.x = x; this.y = y; this.dy = 2; this.active = true;
         const r = Math.random();
-        if (r < 0.25) this.type = 'SPLIT'; else if (r < 0.50) this.type = 'EXPAND';
-        else if (r < 0.75) this.type = 'LASER'; else this.type = 'TNT';
+        if (r < 0.25) this.type = 'SPLIT';
+        else if (r < 0.50) this.type = 'EXPAND';
+        else if (r < 0.75) this.type = 'LASER';
+        else this.type = 'TNT'; // Penetrate
     }
     update() {
         this.y += this.dy;
         if (this.y > CANVAS.height) this.active = false;
-        if (this.active && this.x > paddle.x && this.x < paddle.x + paddle.width &&
+        if (this.active && 
+            this.x > paddle.x && this.x < paddle.x + paddle.width &&
             this.y + 15 > paddle.y && this.y - 15 < paddle.y + paddle.height) {
-            this.activate(); this.active = false;
+            this.activate();
+            this.active = false;
         }
     }
     activate() {
-        score += 300; AudioSys.playPowerUp();
+        score += 300;
+        AudioSys.playPowerUp();
         createParticles(paddle.x + paddle.width/2, paddle.y, '#fff', 10);
         if (this.type === 'SPLIT') {
             AudioSys.playSplit();
-            const currentCount = balls.length; const maxAdd = 2;
-            let slots = MAX_BALLS - currentCount; let addCount = Math.min(slots, maxAdd);
+            const currentCount = balls.length;
+            const maxAdd = 2;
+            let slots = MAX_BALLS - currentCount;
+            let addCount = Math.min(slots, maxAdd);
+
             if (addCount > 0) {
                 let newBalls = [];
-                const spawnX = paddle.x + paddle.width / 2; const spawnY = paddle.y - 15;
                 for (let i = 0; i < addCount; i++) {
-                    const speed = 2.8; const angle = -Math.PI / 2 + (Math.random() * 1.0 - 0.5); 
-                    const newDx = Math.cos(angle) * speed; const newDy = Math.sin(angle) * speed;
-                    newBalls.push(new Ball(spawnX, spawnY, newDx, newDy, false));
+                    const sourceBall = balls[i % balls.length];
+                    const speed = Math.hypot(sourceBall.dx, sourceBall.dy);
+                    const currentAngle = Math.atan2(sourceBall.dy, sourceBall.dx);
+                    
+                    const angleOffset = (i % 2 === 0 ? -1 : 1) * 0.35; 
+                    const newAngle = currentAngle + angleOffset;
+                    
+                    const newDx = Math.cos(newAngle) * speed;
+                    const newDy = Math.sin(newAngle) * speed;
+
+                    newBalls.push(new Ball(sourceBall.x, sourceBall.y, newDx, newDy, false));
                 }
                 balls = balls.concat(newBalls);
             }
-        } else if (this.type === 'EXPAND') { paddle.expandTimer = 10000; }
-        else if (this.type === 'LASER') { paddle.laserActive = true; paddle.laserTimer = 5000; }
-        else if (this.type === 'TNT') {
-            let hasPenetrating = balls.some(b => b.penetrate);
-            if (!hasPenetrating && balls.length > 0) {
-                const target = balls[Math.floor(Math.random() * balls.length)];
-                target.penetrate = true; target.penetrateTimer = 10000;
-            } else if (hasPenetrating) {
-                const target = balls.find(b => b.penetrate); if (target) target.penetrateTimer = 10000;
-            }
+        } else if (this.type === 'EXPAND') {
+            paddle.expandTimer = 10000;
+        } else if (this.type === 'LASER') {
+            paddle.laserActive = true; 
+            paddle.laserTimer = 5000;
+        } else if (this.type === 'TNT') {
+            tntActive = true; 
+            tntTimer = 10000;
         }
     }
     draw() {
         if (!this.active) return;
-        CTX.save(); CTX.translate(this.x, this.y);
+        CTX.save();
+        CTX.translate(this.x, this.y);
         CTX.beginPath(); CTX.arc(0, 0, 15, 0, Math.PI*2);
-        CTX.fillStyle = 'rgba(0, 20, 60, 0.6)'; CTX.fill(); CTX.strokeStyle = '#88ccff'; CTX.lineWidth = 2; CTX.stroke();
+        CTX.fillStyle = 'rgba(0, 20, 60, 0.6)'; CTX.fill();
+        CTX.strokeStyle = '#88ccff'; CTX.lineWidth = 2; CTX.stroke();
         if (this.type === 'SPLIT') {
             CTX.fillStyle = '#00ffff';
             CTX.beginPath(); CTX.arc(-6, 4, 4, 0, Math.PI*2); CTX.fill();
@@ -831,7 +695,8 @@ class PowerUp {
         } else if (this.type === 'TNT') {
             CTX.fillStyle = '#ff4444';
             CTX.beginPath(); CTX.arc(0, 2, 6, 0, Math.PI*2); CTX.fill();
-            CTX.fillStyle = '#ffff00'; CTX.fillRect(0, -8, 2, 4);
+            CTX.fillStyle = '#ffff00'; 
+            CTX.fillRect(0, -8, 2, 4);
         }
         CTX.restore();
     }
@@ -845,7 +710,10 @@ class Laser {
         if(this.y < 0) this.active = false;
         for(let b of bricks) {
             if(b.active && this.x > b.x && this.x < b.x + b.w && this.y < b.y + b.h && this.y + 20 > b.y) {
-                b.hit(1); this.active = false; createParticles(this.x, this.y, '#fa0', 5); break;
+                b.hit(1); 
+                this.active = false; 
+                createParticles(this.x, this.y, '#fa0', 5); 
+                break;
             }
         }
     }
@@ -859,7 +727,8 @@ class Laser {
 class Shard {
     constructor(x, y, color) {
         this.x = x; this.y = y; this.color = color;
-        const angle = Math.random() * Math.PI * 2; const speed = Math.random() * 4 + 1;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 4 + 1;
         this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed - 2;
         this.gravity = 0.3; this.life = 1.0; this.size = Math.random() * 5 + 3;
     }
@@ -885,266 +754,77 @@ function triggerExplosion(x, y, withDamage = false) {
         bricks.forEach(b => {
             if (b.active) {
                 const dist = Math.hypot((b.x+b.w/2)-x, (b.y+b.h/2)-y);
-                if (dist < 70) b.hit(10, true);
+                if (dist < 70) b.hit(10);
             }
         });
     }
 }
 
-// ミサイル着弾処理
-function triggerMissileImpact() {
-    AudioSys.playMissileImpact();
-    const alert = UI.missileOverlay;
-    alert.classList.add('visible');
-    
-    // 2秒後に消してライフ減
-    setTimeout(() => {
-        alert.classList.remove('visible');
-        loseLife();
-    }, 2000);
-}
-
+/**
+ * Game Logic
+ */
 function startLevel(lvl) {
     currentLevel = lvl;
     gameState = STATE.PLAYING;
-    UI.menuOverlay.classList.remove('visible');
-    UI.rescueOverlay.classList.remove('visible');
-    UI.missileOverlay.classList.remove('visible');
-    UI.btn.classList.remove('hidden');
-    UI.btn.style.display = ''; 
-
-    isRescueCounting = false;
-    
+    UI.overlay.classList.add('hidden');
     paddle = new Paddle();
     balls = [new Ball(0, 0, 0, 0, true)];
     tntActive = false;
     powerUps = []; lasers = []; particles = []; shards = [];
-    obstacles = []; missiles = [];
-    
     generateLevel(lvl);
-    
-    // Level 4+ : 障害物配置
-    if (lvl >= 4) {
-        const obsCount = Math.min(3, Math.floor((lvl - 2) * 0.5)) || 1;
-        let attempts = 0;
-        while (obstacles.length < obsCount && attempts < 100) {
-            attempts++;
-            const ox = Math.random() * (CANVAS.width - 60) + 30;
-            const oy = Math.random() * (CANVAS.height - 250) + 60; // ブロックと重ならないよう広めに
-            
-            // 重なりチェック
-            let overlap = false;
-            for (let b of bricks) {
-                if (ox > b.x - 20 && ox < b.x + b.w + 20 &&
-                    oy > b.y - 20 && oy < b.y + b.h + 20) {
-                    overlap = true;
-                    break;
-                }
-            }
-            for (let o of obstacles) {
-                const dist = Math.hypot(ox - o.x, oy - o.y);
-                if (dist < 50) { overlap = true; break; }
-            }
-
-            if (!overlap) {
-                obstacles.push(new Obstacle(ox, oy));
-            }
-        }
-    }
-
     drawLives();
-    lastBrickHitTime = Date.now();
 }
 
 function generateLevel(lvl) {
     bricks = [];
     const cw = CANVAS.width;
-    const pattern = Math.floor(Math.random() * 10); 
-    
-    const startY = 120;
-    // ブロック描画の限界Y座標 (パドル位置から100px上)
-    const limitY = paddle.y - 100;
-    const marginX = 40;
-    const safeWidth = cw - marginX * 2;
+    const pattern = (lvl - 1) % 4;
+    const startY = 100;
 
-    switch (pattern) {
-        case 0: // Grid
-            {
-                const cols = Math.min(16, 10 + lvl); const rows = Math.min(12, 6 + Math.floor(lvl/2));
-                const padding = 2; const w = safeWidth / cols; const h = 20;
-                for(let r=0; r<rows; r++) {
-                    const by = startY + r*(h+padding); 
-                    if (by + h > limitY) break;
-                    for(let c=0; c<cols; c++) addBrick(marginX + c*w + padding, by, w - padding*2, h, lvl);
-                }
+    if (pattern === 0) { // Grid
+        const cols = Math.min(16, 8 + lvl);
+        const rows = Math.min(10, 5 + Math.floor(lvl/2));
+        const padding = 2;
+        const w = (cw - 20) / cols;
+        const h = 20;
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                addBrick(10 + c*w + padding, startY + r*(h+padding), w - padding*2, h, lvl);
             }
-            break;
-        case 1: // Pyramid
-            {
-                const rows = 12 + lvl; const w = 35; const h = 20;
-                for(let r=0; r<rows; r++) {
-                    const by = startY + r*(h+2); 
-                    if (by + h > limitY) break;
-                    const cols = r + 4; 
-                    const rowWidth = cols * w; if (rowWidth > safeWidth) continue;
-                    const startX = (cw - rowWidth)/2;
-                    for(let c=0; c<cols; c++) addBrick(startX + c*w, by, w-2, h, lvl);
-                }
+        }
+    } else if (pattern === 1) { // Pyramid
+        const rows = 10 + lvl;
+        const w = 35;
+        const h = 20;
+        for(let r=0; r<rows; r++) {
+            const cols = r + 2;
+            const startX = (cw - cols*w)/2;
+            for(let c=0; c<cols; c++) addBrick(startX + c*w, startY + r*(h+2), w-2, h, lvl);
+        }
+    } else if (pattern === 2) { // Circle
+        const cx = cw/2, cy = startY + 150;
+        for(let ring=1; ring<=4+Math.floor(lvl/3); ring++) {
+            const r = ring * 40;
+            const count = Math.floor(2*Math.PI*r/35);
+            for(let i=0; i<count; i++) {
+                const angle = i/count * Math.PI*2;
+                addBrick(cx + Math.cos(angle)*r - 15, cy + Math.sin(angle)*r*0.6 - 10, 30, 18, lvl);
             }
-            break;
-        case 2: // Circle
-            {
-                const cy = startY + 120;
-                const cx = cw/2;
-                for(let ring=1; ring<=5+Math.floor(lvl/3); ring++) {
-                    const r = ring * 35; 
-                    const count = Math.floor(2*Math.PI*r/30);
-                    for(let i=0; i<count; i++) {
-                        const angle = i/count * Math.PI*2;
-                        const bx = cx + Math.cos(angle)*r - 15; const by = cy + Math.sin(angle)*r*0.6 - 10;
-                        if (bx < marginX || bx > cw - marginX || by + 20 > limitY) continue;
-                        addBrick(bx, by, 30, 18, lvl);
-                    }
-                }
-            }
-            break;
-        case 3: // Columns
-            {
-                const cols = 6 + Math.floor(lvl/3); const w = safeWidth / cols;
-                for(let c=0; c<cols; c++) {
-                    if (c % 2 !== 0) continue;
-                    for(let r=0; r<14; r++) {
-                        const by = startY + r*25; 
-                        if (by + 20 > limitY) break;
-                        addBrick(marginX + c*w + 5, by, w-10, 20, lvl);
-                    }
-                }
-            }
-            break;
-        case 4: // Scatter
-            {
-                const count = 60 + lvl * 10;
-                for(let i=0; i<count; i++) {
-                    const bx = Math.random()*(safeWidth - 40) + marginX;
-                    const by = Math.random()*(limitY - startY - 20) + startY;
-                    addBrick(bx, by, 40, 18, lvl);
-                }
-            }
-            break;
-        case 5: // Honeycomb
-            {
-                const cols = Math.min(14, 8 + lvl);
-                const rows = Math.min(14, 7 + Math.floor(lvl/2));
-                const w = safeWidth / cols; const h = 22;
-                for (let r = 0; r < rows; r++) {
-                    const by = startY + r * (h + 3); 
-                    if (by + h > limitY) break;
-                    const offset = (r % 2 === 0) ? 0 : w / 2;
-                    const count = (r % 2 === 0) ? cols : cols - 1;
-                    for (let c = 0; c < count; c++) addBrick(marginX + c * w + offset + 2, by, w - 4, h, lvl);
-                }
-            }
-            break;
-        case 6: // Vortex
-            {
-                const cx = cw / 2;
-                const cy = startY + 120;
-                const maxRadius = Math.min(cw, CANVAS.height/2) / 2 - marginX;
-                let angle = 0; let radius = 20;
-                while (radius < maxRadius) {
-                    const bx = cx + Math.cos(angle) * radius - 20;
-                    const by = cy + Math.sin(angle) * radius * 0.6 - 10;
-                    if (by + 20 > limitY) {
-                        angle += 0.4; radius += 1.2; continue;
-                    }
-                    if (bx > marginX && bx < cw - marginX) addBrick(bx, by, 40, 20, lvl);
-                    angle += 0.4; 
-                    radius += 1.2;
-                }
-            }
-            break;
-        case 7: // DNA
-            {
-                const rows = 18; const w = 30; const h = 20;
-                for (let r = 0; r < rows; r++) {
-                    const by = startY + r * (h + 5); 
-                    if (by + h > limitY) break;
-                    const x1 = cw/2 + Math.sin(r * 0.5) * (safeWidth/3);
-                    const x2 = cw/2 + Math.sin(r * 0.5 + Math.PI) * (safeWidth/3);
-                    for(let k=-1; k<=1; k++) {
-                        addBrick(x1 + k*w - w/2, by, w-2, h, lvl);
-                        addBrick(x2 + k*w - w/2, by, w-2, h, lvl);
-                    }
-                }
-            }
-            break;
-        case 8: // Invader
-            {
-                const rows = 14; const cols = 13; const w = safeWidth / cols; const h = 20;
-                for (let r = 0; r < rows; r++) {
-                    const by = startY + r * (h+2);
-                    if (by + h > limitY) break; 
-                    for (let c = 0; c < cols; c++) {
-                        if ((r + c) % 2 === 0 || r % 3 === 0) addBrick(marginX + c * w, by, w-2, h, lvl);
-                    }
-                }
-            }
-            break;
-        case 9: // Steps
-            {
-                const rows = 18; const w = 40; const h = 20;
-                for (let r = 0; r < rows; r++) {
-                    const by = startY + r * (h + 5); 
-                    if (by + h > limitY) break;
-                    const cols = Math.floor(safeWidth / w);
-                    for(let c=0; c<cols; c++) {
-                        if ((c + r) % 3 === 0) addBrick(marginX + c * w, by, w-2, h, lvl);
-                    }
-                }
-            }
-            break;
+        }
+    } else { // Random
+        for(let i=0; i<50 + lvl*8; i++) {
+            addBrick(Math.random()*(cw-40)+20, Math.random()*(CANVAS.height/3)+startY, 40, 18, lvl);
+        }
     }
-    
-    // 全ブロック配置後にタイプを割り当て（TNT最低保証）
-    assignBrickTypes(lvl);
 }
 
 function addBrick(x, y, w, h, lvl) {
-    // 仮タイプ0で作成
-    bricks.push(new Brick(x, y, w, h, 0, lvl));
-}
-
-function assignBrickTypes(lvl) {
-    if (bricks.length === 0) return;
-
-    let indices = Array.from({length: bricks.length}, (_, i) => i);
-    // Shuffle
-    for (let i = indices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [indices[i], indices[j]] = [indices[j], indices[i]];
-    }
-
-    // TNT数決定: 最低1個。基本5% + レベル補正
-    const tntRate = 0.05 + (lvl * 0.005); 
-    let tntCount = Math.max(1, Math.floor(bricks.length * tntRate));
-    
-    // Hard数決定
-    const hardRate = 0.1 + (lvl * 0.05);
-    let hardCount = Math.floor(bricks.length * hardRate);
-
-    let currentIndex = 0;
-    
-    // TNT割り当て
-    for (let i = 0; i < tntCount && currentIndex < indices.length; i++) {
-        bricks[indices[currentIndex]].setType(2, lvl);
-        currentIndex++;
-    }
-
-    // Hard割り当て
-    for (let i = 0; i < hardCount && currentIndex < indices.length; i++) {
-        bricks[indices[currentIndex]].setType(1, lvl);
-        currentIndex++;
-    }
+    let type = 0;
+    const hardRate = 0.1 + lvl * 0.05;
+    const tntRate = 0.03 + lvl * 0.01;
+    if(Math.random() < tntRate) type = 2;
+    else if(Math.random() < hardRate) type = 1;
+    bricks.push(new Brick(x, y, w, h, type, lvl));
 }
 
 function checkClear() {
@@ -1154,37 +834,33 @@ function checkClear() {
             UI.title.innerText = "CONGRATULATIONS!";
             UI.sub.innerText = "All Stages Cleared!";
             UI.btn.innerText = "RESTART GAME";
-            UI.btn.classList.remove('hidden');
-            UI.btn.style.display = 'block'; 
         } else {
             gameState = STATE.LEVEL_CLEAR;
             UI.title.innerText = "STAGE CLEAR!";
             UI.sub.innerText = "Next Stage...";
             UI.btn.classList.add('hidden');
-            UI.btn.style.display = 'none'; 
-            
-            setTimeout(() => {
-                 UI.btn.style.display = ''; 
-                 startLevel(currentLevel + 1);
-            }, 2000);
+            setTimeout(() => startLevel(currentLevel + 1), 2000);
         }
-        UI.menuOverlay.classList.add('visible');
+        UI.overlay.classList.remove('hidden');
+        if(gameState === STATE.VICTORY) UI.btn.classList.remove('hidden');
     }
 }
 
 function loseLife() {
-    lives--; drawLives(); AudioSys.playDamage();
+    lives--;
+    drawLives();
+    AudioSys.playDamage();
     if (lives < 0) {
         gameState = STATE.GAME_OVER;
         UI.title.innerText = "GAME OVER";
         UI.sub.innerText = `Score: ${score} - Stage ${currentLevel}`;
-        UI.btn.innerText = "CONTINUE (Try Again)";
-        UI.menuOverlay.classList.add('visible');
-        UI.btn.classList.remove('hidden'); 
-        UI.btn.style.display = ''; 
+        UI.btn.innerText = "CONTINUE";
+        UI.btn.classList.remove('hidden');
+        UI.overlay.classList.remove('hidden');
     } else {
-        balls = [new Ball(0, 0, 0, 0, true)]; paddle.laserActive = false; tntActive = false;
-        lastBrickHitTime = Date.now(); 
+        balls = [new Ball(0, 0, 0, 0, true)];
+        paddle.laserActive = false;
+        tntActive = false;
     }
 }
 
@@ -1192,59 +868,12 @@ function drawLives() {
     LIVES_CTX.clearRect(0, 0, LIVES_CANVAS.width, LIVES_CANVAS.height);
     for(let i=0; i<lives; i++) {
         if (i > 10) break;
-        const x = 15 + i * 25; const y = 15;
+        const x = 15 + i * 25;
+        const y = 15;
         LIVES_CTX.beginPath(); LIVES_CTX.arc(x, y, 7, 0, Math.PI*2);
         LIVES_CTX.fillStyle = '#00aaff'; LIVES_CTX.fill();
         LIVES_CTX.fillStyle = 'rgba(255,255,255,0.7)'; LIVES_CTX.beginPath(); LIVES_CTX.arc(x-2, y-2, 2.5, 0, Math.PI*2); LIVES_CTX.fill();
     }
-}
-
-// お助けモード開始 (ノンストップ)
-function startRescueSequence() {
-    if (isRescueCounting) return; 
-    isRescueCounting = true;
-    
-    let countdownValue = 5;
-    UI.rescueCount.innerText = countdownValue;
-    UI.rescueOverlay.classList.add('visible');
-    
-    const timer = setInterval(() => {
-        if (gameState !== STATE.PLAYING) { 
-            clearInterval(timer); 
-            isRescueCounting = false;
-            UI.rescueOverlay.classList.remove('visible');
-            return;
-        }
-        countdownValue--;
-        if (countdownValue > 0) {
-            UI.rescueCount.innerText = countdownValue;
-            AudioSys.playTone(800, 'square', 0.1, 0.1);
-        } else {
-            clearInterval(timer);
-            executeRescue();
-        }
-    }, 1000);
-}
-
-function executeRescue() {
-    isRescueCounting = false;
-    UI.rescueOverlay.classList.remove('visible');
-    AudioSys.playRescue();
-    
-    const spawnX = paddle.x + paddle.width/2;
-    const spawnY = paddle.y - 15;
-    const speed = 2.8;
-    const angle = -Math.PI / 2 + (Math.random() * 0.5 - 0.25); 
-    const newDx = Math.cos(angle) * speed;
-    const newDy = Math.sin(angle) * speed;
-    
-    if (balls.length === 0) {
-        balls.push(new Ball(0,0,0,0,true));
-    } else {
-        balls.push(new Ball(spawnX, spawnY, newDx, newDy, false));
-    }
-    
-    lastBrickHitTime = Date.now();
 }
 
 function loop() {
@@ -1261,43 +890,22 @@ function loop() {
 
     if (gameState === STATE.PLAYING || gameState === STATE.LEVEL_CLEAR) {
         if (gameState === STATE.PLAYING) {
-            
-            // 60秒経過でお助けモード発動
-            if (!isRescueCounting && now - lastBrickHitTime > 60000) {
-                startRescueSequence();
-            }
-
-            // ミサイル生成 (Level 6+)
-            if (currentLevel >= 6 && Math.random() < 0.002) {
-                missiles.push(new Missile());
-            }
-
             paddle.update(dt);
             for (let i = balls.length - 1; i >= 0; i--) {
                 const b = balls[i];
-                b.update(dt);
+                b.update();
                 if (b.y > CANVAS.height + 20) balls.splice(i, 1);
             }
             if (balls.length === 0) loseLife();
-            
             powerUps.forEach(p => p.update());
             lasers.forEach(l => l.update());
-            missiles.forEach(m => m.update());
-            
-            // Cleanup
-            missiles = missiles.filter(m => m.active);
         }
 
         paddle.draw();
-        
-        // 障害物描画
-        obstacles.forEach(o => o.draw());
-
         bricks.forEach(b => b.draw());
         balls.forEach(b => b.draw());
         powerUps.forEach(p => p.draw());
         lasers.forEach(l => l.draw());
-        missiles.forEach(m => m.draw());
         
         particles.forEach((p, i) => {
             p.x += p.vx; p.y += p.vy; p.life -= 0.05;
